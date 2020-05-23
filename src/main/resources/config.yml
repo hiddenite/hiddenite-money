@@ -1,0 +1,8 @@
+mysql:
+  host: "127.0.0.1"
+  user: "root"
+  password: ""
+  database: "my_server"
+messages:
+  money: "§6You have §c${MONEY}§6."
+  pay-usage: "§c/pay <player> <amount>"
