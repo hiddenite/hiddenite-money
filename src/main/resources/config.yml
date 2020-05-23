@@ -6,3 +6,8 @@ mysql:
 messages:
   money: "§6You have §c${MONEY}§6."
   pay-usage: "§c/pay <player> <amount>"
+  pay-sent-to: "You sent ${AMOUNT} to {PLAYER}."
+  pay-received-from: "You received ${AMOUNT} from {PLAYER}."
+  error-player-not-online: "§cThe player {PLAYER} isn't online."
+  error-invalid-amount: "§cThe amount {AMOUNT} is invalid."
+  error-not-enough-money: "§cYou don't have enough money."

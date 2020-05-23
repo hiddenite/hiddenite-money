@@ -1,6 +1,7 @@
 package eu.hiddenite.money;
 
 import eu.hiddenite.money.commands.MoneyCommand;
+import eu.hiddenite.money.commands.PayCommand;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
@@ -23,6 +24,8 @@ public class MoneyPlugin extends Plugin {
     private Configuration config;
     private Database database;
 
+    private DecimalFormat formatter;
+
     public Configuration getConfig() {
         return config;
     }
@@ -39,7 +42,12 @@ public class MoneyPlugin extends Plugin {
             return;
         }
 
+        formatter = (DecimalFormat) NumberFormat.getInstance(Locale.CANADA);
+        formatter.setMinimumFractionDigits(2);
+        formatter.setMaximumFractionDigits(2);
+
         getProxy().getPluginManager().registerCommand(this, new MoneyCommand(this));
+        getProxy().getPluginManager().registerCommand(this, new PayCommand(this));
     }
 
     @Override
@@ -61,14 +69,60 @@ public class MoneyPlugin extends Plugin {
             return;
         }
 
-        DecimalFormat formatter = (DecimalFormat) NumberFormat.getInstance(Locale.US);
-        formatter.setMinimumFractionDigits(2);
-        formatter.setMaximumFractionDigits(2);
-
         String message = getConfig().getString("messages.money");
         String formattedMoney = formatter.format(currentMoney / 100.0);
         message = message.replace("{MONEY}", formattedMoney);
         player.sendMessage(TextComponent.fromLegacyText(message));
+    }
+
+    public void payMoney(ProxiedPlayer fromPlayer, ProxiedPlayer toPlayer, long amount) {
+        boolean wasUpdated;
+        try (PreparedStatement ps = database.prepareStatement("UPDATE currency" +
+                " SET amount = amount - ?" +
+                " WHERE player_id = ? AND amount >= ?")) {
+            ps.setLong(1, amount);
+            ps.setString(2, fromPlayer.getUniqueId().toString());
+            ps.setLong(3, amount);
+            wasUpdated = ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            getLogger().warning("Could not take $" + amount + " from " + fromPlayer.getName());
+            e.printStackTrace();
+            return;
+        }
+
+        if (!wasUpdated) {
+            String error = getConfig().getString("messages.error-not-enough-money");
+            fromPlayer.sendMessage(TextComponent.fromLegacyText(error));
+            return;
+        }
+
+        try (PreparedStatement ps = database.prepareStatement("INSERT INTO currency" +
+                " (player_id, amount)" +
+                " VALUES (?, ?)" +
+                " ON DUPLICATE KEY UPDATE amount = amount + ?"
+        )) {
+            ps.setString(1, toPlayer.getUniqueId().toString());
+            ps.setLong(2, amount);
+            ps.setLong(3, amount);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            getLogger().warning("Could not add $" + amount + " to " + toPlayer.getName());
+            e.printStackTrace();
+        }
+
+        getLogger().info(fromPlayer.getName() + " sent $" + amount + " to " + toPlayer.getName());
+
+        String formattedAmount = formatter.format(amount / 100.0);
+
+        String message = getConfig().getString("messages.pay-sent-to");
+        message = message.replace("{AMOUNT}", formattedAmount);
+        message = message.replace("{PLAYER}", toPlayer.getName());
+        fromPlayer.sendMessage(TextComponent.fromLegacyText(message));
+
+        message = getConfig().getString("messages.pay-received-from");
+        message = message.replace("{AMOUNT}", formattedAmount);
+        message = message.replace("{PLAYER}", fromPlayer.getName());
+        toPlayer.sendMessage(TextComponent.fromLegacyText(message));
     }
 
     private boolean loadConfiguration() {
