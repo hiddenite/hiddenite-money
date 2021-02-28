@@ -13,18 +13,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
-import java.util.Locale;
 
 public class MoneyPlugin extends Plugin {
     private Configuration config;
     private Database database;
-
-    private DecimalFormat formatter;
+    private Economy economy;
 
     public Configuration getConfig() {
         return config;
@@ -42,9 +35,7 @@ public class MoneyPlugin extends Plugin {
             return;
         }
 
-        formatter = (DecimalFormat) NumberFormat.getInstance(Locale.CANADA);
-        formatter.setMinimumFractionDigits(2);
-        formatter.setMaximumFractionDigits(2);
+        economy = new Economy(database, getLogger());
 
         getProxy().getPluginManager().registerCommand(this, new MoneyCommand(this));
         getProxy().getPluginManager().registerCommand(this, new PayCommand(this));
@@ -56,63 +47,31 @@ public class MoneyPlugin extends Plugin {
     }
 
     public void sendCurrentMoneyMessage(ProxiedPlayer player) {
-        long currentMoney = 0;
-        try (PreparedStatement ps = database.prepareStatement("SELECT amount FROM currency WHERE player_id = ?")) {
-            ps.setString(1, player.getUniqueId().toString());
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    currentMoney = rs.getLong(1);
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return;
-        }
+        long currentMoney = economy.getMoney(player.getUniqueId());
 
         String message = getConfig().getString("messages.money");
-        String formattedMoney = formatter.format(currentMoney / 100.0);
-        message = message.replace("{MONEY}", formattedMoney);
+        message = message.replace("{MONEY}", economy.format(currentMoney));
         player.sendMessage(TextComponent.fromLegacyText(message));
     }
 
     public void payMoney(ProxiedPlayer fromPlayer, ProxiedPlayer toPlayer, long amount) {
-        boolean wasUpdated;
-        try (PreparedStatement ps = database.prepareStatement("UPDATE currency" +
-                " SET amount = amount - ?" +
-                " WHERE player_id = ? AND amount >= ?")) {
-            ps.setLong(1, amount);
-            ps.setString(2, fromPlayer.getUniqueId().toString());
-            ps.setLong(3, amount);
-            wasUpdated = ps.executeUpdate() > 0;
-        } catch (SQLException e) {
-            getLogger().warning("Could not take $" + amount + " from " + fromPlayer.getName());
-            e.printStackTrace();
-            return;
-        }
-
-        if (!wasUpdated) {
+        Economy.ResultType result = economy.removeMoney(fromPlayer.getUniqueId(), amount);
+        if (result == Economy.ResultType.NOT_ENOUGH_MONEY) {
             String error = getConfig().getString("messages.error-not-enough-money");
             fromPlayer.sendMessage(TextComponent.fromLegacyText(error));
+        }
+        if (result != Economy.ResultType.SUCCESS) {
             return;
         }
 
-        try (PreparedStatement ps = database.prepareStatement("INSERT INTO currency" +
-                " (player_id, amount)" +
-                " VALUES (?, ?)" +
-                " ON DUPLICATE KEY UPDATE amount = amount + ?"
-        )) {
-            ps.setString(1, toPlayer.getUniqueId().toString());
-            ps.setLong(2, amount);
-            ps.setLong(3, amount);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            getLogger().warning("Could not add $" + amount + " to " + toPlayer.getName());
-            e.printStackTrace();
+        result = economy.addMoney(toPlayer.getUniqueId(), amount);
+        if (result != Economy.ResultType.SUCCESS) {
+            return;
         }
 
         getLogger().info(fromPlayer.getName() + " sent $" + amount + " to " + toPlayer.getName());
 
-        String formattedAmount = formatter.format(amount / 100.0);
+        String formattedAmount = economy.format(amount);
 
         String message = getConfig().getString("messages.pay-sent-to");
         message = message.replace("{AMOUNT}", formattedAmount);

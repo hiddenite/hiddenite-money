@@ -37,22 +37,20 @@ public class PayCommand extends Command implements TabExecutor {
             return;
         }
 
-        double amount = -1;
+        long amount = -1;
         try {
-            amount = Double.parseDouble(args[1]);
+            amount = Long.parseLong(args[1]);
         } catch (NumberFormatException ignored) {
         }
-        if (amount < 0.01 || amount > 1000000000.0) {
+        if (amount < 1 || amount > 1000000000L) {
             String error = plugin.getConfig().getString("messages.error-invalid-amount");
             error = error.replace("{AMOUNT}", args[1]);
             sender.sendMessage(TextComponent.fromLegacyText(error));
             return;
         }
 
-        long trueAmount = (long)(amount * 100);
-
         ProxiedPlayer fromPlayer = (ProxiedPlayer)sender;
-        plugin.payMoney(fromPlayer, toPlayer, trueAmount);
+        plugin.payMoney(fromPlayer, toPlayer, amount);
     }
 
     @Override
@@ -61,7 +59,7 @@ public class PayCommand extends Command implements TabExecutor {
             return TabCompleteHelper.matchPlayer(args[0]);
         }
         if (args.length == 2) {
-            return Arrays.asList("100", "10", "1", "0.01");
+            return Arrays.asList("100", "50", "10", "1");
         }
         return TabCompleteHelper.empty();
     }
