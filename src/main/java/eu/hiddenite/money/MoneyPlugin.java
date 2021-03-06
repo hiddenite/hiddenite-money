@@ -23,6 +23,10 @@ public class MoneyPlugin extends Plugin {
         return config;
     }
 
+    public Economy getEconomy() {
+        return economy;
+    }
+
     @Override
     public void onEnable() {
         if (!loadConfiguration()) {
@@ -39,6 +43,8 @@ public class MoneyPlugin extends Plugin {
 
         getProxy().getPluginManager().registerCommand(this, new MoneyCommand(this));
         getProxy().getPluginManager().registerCommand(this, new PayCommand(this));
+
+        new DailyBonusManager(this);
     }
 
     @Override

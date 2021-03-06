@@ -3,6 +3,7 @@ mysql:
   user: "root"
   password: ""
   database: "my_server"
+
 messages:
   money: "§6You have §c${MONEY}§6."
   pay-usage: "§c/pay <player> <amount>"
@@ -11,3 +12,11 @@ messages:
   error-player-not-online: "§cThe player {PLAYER} isn't online."
   error-invalid-amount: "§cThe amount {AMOUNT} is invalid."
   error-not-enough-money: "§cYou don't have enough money."
+
+daily-bonus:
+  enabled: true
+  money-per-streak: 1000
+  max-per-day: 10000
+  messages:
+    no-streak: "You received your daily bonus of §6${AMOUNT}§r by logging in."
+    streak: "You received your daily bonus of §6${AMOUNT}§r due to your {STREAK}-days streak."
